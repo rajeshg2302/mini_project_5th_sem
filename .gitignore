@@ -1,0 +1,28 @@
+# Python / Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Node / Dependencies
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+
+# SQLite Database
+*.db
+*.sqlite3
+database/*.db
+
+# IDEs & System
+.vscode/
+.idea/
+.DS_Store
+*.log

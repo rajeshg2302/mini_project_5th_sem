@@ -1,0 +1,53 @@
+{
+  "random_forest": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "auc_roc": 1.0,
+    "confusion_matrix": [
+      [
+        120,
+        0
+      ],
+      [
+        0,
+        120
+      ]
+    ]
+  },
+  "xgboost": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "auc_roc": 1.0,
+    "confusion_matrix": [
+      [
+        120,
+        0
+      ],
+      [
+        0,
+        120
+      ]
+    ]
+  },
+  "logistic_regression": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "auc_roc": 1.0,
+    "confusion_matrix": [
+      [
+        120,
+        0
+      ],
+      [
+        0,
+        120
+      ]
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "dataset_mode": "synthetic",
+  "dataset_path": "D:\\mini project 5th sem\\phishguard\\data\\raw\\synthetic\\phishing_dataset.csv",
+  "total_samples": 1200,
+  "class_distribution": {
+    "legitimate": 600,
+    "phishing": 600,
+    "imbalance_ratio": 1.0
+  },
+  "quality_metrics": {
+    "duplicate_urls": 52,
+    "duplicate_feature_vectors": 105,
+    "malformed_urls": 0,
+    "invalid_labels": 0,
+    "total_missing_values": 0
+  },
+  "missing_per_column": {}
+}
