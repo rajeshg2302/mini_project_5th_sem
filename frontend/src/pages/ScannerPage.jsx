@@ -4,15 +4,24 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   HiSearch, HiShieldCheck, HiShieldExclamation, HiExclamation,
   HiDownload, HiRefresh, HiClock, HiChevronDown, HiChevronUp,
-  HiScale, HiInformationCircle
+  HiScale, HiInformationCircle, HiBriefcase
 } from 'react-icons/hi';
-import { scanURL } from '../services/api';
+import { scanURL, createCase } from '../services/api';
 import { generateDynamicRecommendations } from '../services/threatIntelligence';
 
 import ThreatProfileRadar from '../components/threat/ThreatProfileRadar';
 import UrlDnaVisualizer from '../components/threat/UrlDnaVisualizer';
 import ScanTimeline from '../components/threat/ScanTimeline';
 import SecurityEducationPanel from '../components/threat/SecurityEducationPanel';
+
+// Phase 13 — Intelligence Fusion Components
+import ThreatEvidenceSummary from '../components/fusion/ThreatEvidenceSummary';
+import IntelligenceScorecard from '../components/fusion/IntelligenceScorecard';
+import ThreatReasoningGraph from '../components/fusion/ThreatReasoningGraph';
+import AttackIndicators from '../components/fusion/AttackIndicators';
+import ModelEvidencePanel from '../components/fusion/ModelEvidencePanel';
+import AnalystDecisionAssistant from '../components/fusion/AnalystDecisionAssistant';
+import MissingEvidencePanel from '../components/fusion/MissingEvidencePanel';
 
 const SCAN_SEQUENCE = [
   { label: 'URL RECEIVED', icon: '📥' },
@@ -85,6 +94,26 @@ export default function ScannerPage() {
     link.download = `phishguard-scan-${report.id || 'report'}.json`;
     link.click();
     URL.revokeObjectURL(blobUrl);
+  };
+
+  const handleStartInvestigation = async () => {
+    if (!report) return;
+    try {
+      const caseData = await createCase({
+        url: report.url,
+        verdict: report.verdict,
+        risk_score: report.risk_score,
+        severity: report.risk_level || (report.risk_score <= 30 ? 'LOW' : report.risk_score <= 70 ? 'MEDIUM' : 'CRITICAL'),
+        scan_id: report.id,
+        status: 'NEW',
+        analyst_notes: `Investigation initiated from Scanner result #${report.id}.`,
+        evidence_summary: report.features,
+      });
+      navigate(`/cases/${caseData.id}`);
+    } catch (err) {
+      console.error('Failed to create investigation case:', err);
+      alert('Could not start investigation case.');
+    }
   };
 
   const categorizeFeatures = (features) => {
@@ -397,6 +426,31 @@ export default function ScannerPage() {
             {/* 10. Security Education Panel */}
             <SecurityEducationPanel features={report.features} />
 
+            {/* ═══════════════════════════════════════════════════════════
+                PHASE 13 — INTELLIGENCE FUSION ENGINE
+            ════════════════════════════════════════════════════════════ */}
+
+            {/* Phase 13.1 — Threat Evidence Summary */}
+            <ThreatEvidenceSummary scanReport={report} />
+
+            {/* Phase 13.2 — Intelligence Scorecard */}
+            <IntelligenceScorecard scanReport={report} />
+
+            {/* Phase 13.3 — Model vs Evidence Separation */}
+            <ModelEvidencePanel scanReport={report} />
+
+            {/* Phase 13.4 — Attack Indicator Classification */}
+            <AttackIndicators scanReport={report} />
+
+            {/* Phase 13.5 — Threat Reasoning Graph */}
+            <ThreatReasoningGraph scanReport={report} />
+
+            {/* Phase 13.6 — Analyst Decision Assistant */}
+            <AnalystDecisionAssistant scanReport={report} />
+
+            {/* Phase 13.7 — Missing Evidence Panel */}
+            <MissingEvidencePanel scanReport={report} />
+
             {/* 22-Feature Analysis */}
             <div className="report-section" style={{ marginBottom: '24px' }}>
               <div
@@ -441,6 +495,9 @@ export default function ScannerPage() {
 
             {/* Result Actions */}
             <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button className="btn btn-primary" style={{ background: 'var(--accent-cyan)', color: '#000', fontWeight: '800' }} onClick={handleStartInvestigation}>
+                <HiBriefcase /> START INVESTIGATION
+              </button>
               <button className="btn btn-primary" onClick={() => { setReport(null); setUrl(''); }}>
                 <HiRefresh /> NEW SCAN
               </button>

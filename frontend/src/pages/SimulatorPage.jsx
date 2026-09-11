@@ -121,21 +121,24 @@ export default function SimulatorPage() {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
         <div>
-          <h1 className="page-title">⚡ Threat Simulator & Feature Modifier</h1>
+          <h1 className="page-title">⚡ Threat Simulator & What-If Analysis</h1>
           <p className="page-subtitle">Interactive ML inference simulation comparing original vs modified URL risk scores</p>
         </div>
+        <span className="badge" style={{ background: 'var(--accent-cyan)', color: '#000', fontWeight: '900', fontSize: '12px', padding: '6px 14px' }}>
+          SIMULATION ONLY
+        </span>
       </div>
 
-      {/* Mandatory Disclaimer */}
+      {/* Mandatory Section 19 Disclaimer */}
       <div className="disclaimer-banner info-banner" style={{ marginBottom: '28px' }}>
         <HiInformationCircle className="disclaimer-icon" />
         <div>
-          <strong className="disclaimer-title">MODEL SIMULATION NOTICE</strong>
+          <strong className="disclaimer-title">WHAT-IF SECURITY ANALYSIS & DISCLAIMER</strong>
           <p className="disclaimer-text">
-            This simulation demonstrates how the trained ML ensemble responds to controlled feature changes in real-time.
-            It does not determine whether a real website is safe and never modifies stored database scan records.
+            "Simulation modifies extracted feature values for educational analysis. It does not represent a real-world security guarantee."
+            Target modifications run in real-time inference memory and do not mutate original stored scan records.
           </p>
         </div>
       </div>
@@ -171,10 +174,18 @@ export default function SimulatorPage() {
       {originalScan && simulatedScan && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           {/* Interactive Modifiers */}
-          <div className="report-section" style={{ marginBottom: '24px' }}>
-            <h3><HiAdjustments style={{ verticalAlign: 'middle', color: 'var(--accent-cyan)' }} /> Controlled Feature Modifiers</h3>
+          <div className="report-section card-glass" style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <h3 style={{ fontSize: '16px', margin: 0 }}>
+                <HiAdjustments style={{ verticalAlign: 'middle', color: 'var(--accent-cyan)' }} /> WHAT-IF SECURITY ANALYSIS
+              </h3>
+              <span className="badge suspicious" style={{ fontSize: '11px', fontWeight: '800' }}>
+                LIVE FEATURE MODIFIER
+              </span>
+            </div>
+            
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-              Toggle structural feature switches below to observe real-time inference shifts:
+              Toggle feature switches below to test hypotheses and observe real-time model decision sensitivity:
             </p>
 
             <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
@@ -204,21 +215,27 @@ export default function SimulatorPage() {
           <div className="report-grid">
             {/* ORIGINAL CARD */}
             <div className={`report-header ${originalScan.verdict?.toLowerCase()}`} style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-              <div className="badge safe" style={{ marginBottom: '8px' }}>ORIGINAL TARGET</div>
+              <div className="badge safe" style={{ marginBottom: '8px' }}>ORIGINAL RESULT</div>
               <h2 className={originalScan.verdict?.toLowerCase()}>{originalScan.verdict}</h2>
               <div className="verdict-url" style={{ marginBottom: '12px' }}>{originalScan.url}</div>
-              <div style={{ fontSize: '28px', fontWeight: '900', fontFamily: "'JetBrains Mono', monospace" }}>
-                Risk Score: <span className={`score-badge ${originalScan.risk_score <= 30 ? 'low' : originalScan.risk_score <= 70 ? 'medium' : 'high'}`}>{originalScan.risk_score}/100</span>
+              <div style={{ fontSize: '24px', fontWeight: '900', fontFamily: "'JetBrains Mono', monospace" }}>
+                RISK: <span className={`score-badge ${originalScan.risk_score <= 30 ? 'low' : originalScan.risk_score <= 70 ? 'medium' : 'high'}`}>{originalScan.risk_score} / 100</span>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                LEVEL: {originalScan.risk_level || (originalScan.risk_score <= 30 ? 'LOW' : originalScan.risk_score <= 70 ? 'MEDIUM' : 'HIGH')}
               </div>
             </div>
 
             {/* SIMULATED CARD */}
             <div className={`report-header ${simulatedScan.verdict?.toLowerCase()}`} style={{ flexDirection: 'column', alignItems: 'flex-start', borderStyle: 'dashed' }}>
-              <div className="badge suspicious" style={{ marginBottom: '8px' }}>SIMULATED TARGET</div>
+              <div className="badge suspicious" style={{ marginBottom: '8px' }}>SIMULATED RESULT (SIMULATION ONLY)</div>
               <h2 className={simulatedScan.verdict?.toLowerCase()}>{simulatedScan.verdict}</h2>
               <div className="verdict-url" style={{ marginBottom: '12px' }}>{simulatedScan.url}</div>
-              <div style={{ fontSize: '28px', fontWeight: '900', fontFamily: "'JetBrains Mono', monospace" }}>
-                Risk Score: <span className={`score-badge ${simulatedScan.risk_score <= 30 ? 'low' : simulatedScan.risk_score <= 70 ? 'medium' : 'high'}`}>{simulatedScan.risk_score}/100</span>
+              <div style={{ fontSize: '24px', fontWeight: '900', fontFamily: "'JetBrains Mono', monospace" }}>
+                RISK: <span className={`score-badge ${simulatedScan.risk_score <= 30 ? 'low' : simulatedScan.risk_score <= 70 ? 'medium' : 'high'}`}>{simulatedScan.risk_score} / 100</span>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                LEVEL: {simulatedScan.risk_level || (simulatedScan.risk_score <= 30 ? 'LOW' : simulatedScan.risk_score <= 70 ? 'MEDIUM' : 'HIGH')}
               </div>
             </div>
           </div>

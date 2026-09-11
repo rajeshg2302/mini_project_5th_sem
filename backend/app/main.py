@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import CORS_ORIGINS
 from .database import init_db
 from .services.ml_predictor import predictor
-from .routers import scanner, history, models
+from .routers import scanner, history, models, cases, audit_logs, research
 
 
 # ─── Create App ──────────────────────────────────────────────────
@@ -34,6 +34,9 @@ app.add_middleware(
 app.include_router(scanner.router)
 app.include_router(history.router)
 app.include_router(models.router)
+app.include_router(cases.router)
+app.include_router(audit_logs.router)
+app.include_router(research.router)
 
 
 # ─── Startup Event ───────────────────────────────────────────────

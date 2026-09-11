@@ -1329,3 +1329,148 @@ body {
   }
 }
 
+/* ─── Phase 12: Theme System & Tokens ─────────────────── */
+
+[data-theme="midnight"] {
+  --bg-primary: #070913;
+  --bg-secondary: #0d1120;
+  --bg-card: #141a2e;
+  --bg-card-hover: #1c243f;
+  --bg-elevated: #222b49;
+  --bg-glass: rgba(20, 26, 46, 0.85);
+}
+
+[data-theme="carbon"] {
+  --bg-primary: #0f1115;
+  --bg-secondary: #16191f;
+  --bg-card: #1f232b;
+  --bg-card-hover: #282d38;
+  --bg-elevated: #313745;
+  --bg-glass: rgba(31, 35, 43, 0.85);
+}
+
+[data-theme="high-contrast"],
+.high-contrast {
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-card: #121212;
+  --bg-card-hover: #1f1f1f;
+  --bg-elevated: #262626;
+  --bg-glass: rgba(18, 18, 18, 0.95);
+  --text-primary: #ffffff;
+  --text-secondary: #e2e8f0;
+  --text-muted: #cbd5e1;
+  --border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ─── Density Controls ─────────────────────────────────── */
+
+[data-density="compact"] .card,
+[data-density="compact"] .card-glass,
+[data-density="compact"] .report-section {
+  padding: 14px;
+}
+
+[data-density="compact"] .history-table td,
+[data-density="compact"] .history-table th {
+  padding: 8px 12px;
+}
+
+[data-density="compact"] .stats-grid {
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+[data-density="spacious"] .card,
+[data-density="spacious"] .card-glass,
+[data-density="spacious"] .report-section {
+  padding: 32px;
+}
+
+[data-density="spacious"] .history-table td,
+[data-density="spacious"] .history-table th {
+  padding: 18px 24px;
+}
+
+[data-density="spacious"] .stats-grid {
+  gap: 28px;
+  margin-bottom: 40px;
+}
+
+/* ─── Typography Scaling ───────────────────────────────── */
+
+[data-text-size="small"] {
+  font-size: 13px;
+}
+
+[data-text-size="large"] {
+  font-size: 16px;
+}
+
+[data-text-size="extra-large"] {
+  font-size: 17px;
+}
+
+/* ─── Accessibility & Reduced Motion ─────────────────── */
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+.focus-indicators *:focus-visible {
+  outline: 2px solid var(--accent-primary) !important;
+  outline-offset: 2px;
+}
+
+/* ─── Futuristic Effects ───────────────────────────────── */
+
+.grid-bg {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.glow-effects .card:hover,
+.glow-effects .card-glass:hover {
+  box-shadow: 0 0 25px var(--accent-glow);
+  border-color: var(--accent-primary);
+}
+
+/* ─── Collapsed Sidebar Styles ─────────────────────────── */
+
+.sidebar.collapsed {
+  width: 72px;
+  padding: 20px 10px;
+}
+
+.sidebar.collapsed .sidebar-logo .logo-text-wrapper,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .version-tag {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-logo {
+  justify-content: center;
+  margin-bottom: 24px;
+  padding: 0;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 12px;
+}
+
+.sidebar.collapsed .nav-icon {
+  font-size: 20px;
+  width: auto;
+}
+
+.main-content.sidebar-collapsed {
+  margin-left: 72px;
+}
+
+

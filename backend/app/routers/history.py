@@ -68,9 +68,35 @@ def delete_scan(scan_id: int, db: Session = Depends(get_db)):
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
+    scan_url = scan.url
     db.delete(scan)
     db.commit()
-    return {"message": "Scan deleted successfully"}
+
+    from .audit_logs import log_audit_event
+    log_audit_event(db, "SCAN_DELETED", f"Deleted scan record #{scan_id} ({scan_url})", "WARN")
+
+    return {
+        "success": True,
+        "message": "Scan deleted successfully",
+        "id": scan_id
+    }
+
+
+@router.delete("/history")
+def clear_scan_history(db: Session = Depends(get_db)):
+    """Clear all scan history records from the database."""
+    count = db.query(Scan).count()
+    db.query(Scan).delete(synchronize_session=False)
+    db.commit()
+
+    from .audit_logs import log_audit_event
+    log_audit_event(db, "HISTORY_CLEARED", f"Cleared all scan history ({count} records deleted)", "WARN")
+
+    return {
+        "success": True,
+        "message": "All scan history cleared successfully",
+        "deleted_count": count
+    }
 
 
 @router.get("/analytics")

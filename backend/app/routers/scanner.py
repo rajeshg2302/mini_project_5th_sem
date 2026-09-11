@@ -68,5 +68,10 @@ def scan_url(request: ScanRequest, db: Session = Depends(get_db)):
         best_model_name=prediction_result.get('best_model_name'),
     )
 
-    # Step 7: Return response
+    # Step 7: Log security audit event
+    from .audit_logs import log_audit_event
+    severity = "WARN" if prediction_result['verdict'] == "Phishing" else "INFO"
+    log_audit_event(db, "SCAN_CREATED", f"Scanned URL: {validated_url} — Verdict: {prediction_result['verdict']} (Risk: {prediction_result['risk_score']}/100)", severity)
+
+    # Step 8: Return response
     return scan_to_response(scan)

@@ -23,6 +23,7 @@ def get_db():
 
 def init_db():
     """Create all tables and apply any pending schema migrations."""
+    from .models import scan, case, audit_log, research  # noqa: F401
     Base.metadata.create_all(bind=engine)
 
     # ── Schema migration: add best_model_name column if missing ──────────
@@ -35,3 +36,15 @@ def init_db():
         if "best_model_name" not in columns:
             conn.execute(text("ALTER TABLE scans ADD COLUMN best_model_name VARCHAR(50)"))
             conn.commit()
+
+        if inspector.has_table("cases"):
+            case_columns = [col["name"] for col in inspector.get_columns("cases")]
+            if "assessment" not in case_columns:
+                conn.execute(text("ALTER TABLE cases ADD COLUMN assessment TEXT"))
+                conn.commit()
+            if "resolution" not in case_columns:
+                conn.execute(text("ALTER TABLE cases ADD COLUMN resolution VARCHAR(50)"))
+                conn.commit()
+            if "resolution_notes" not in case_columns:
+                conn.execute(text("ALTER TABLE cases ADD COLUMN resolution_notes TEXT"))
+                conn.commit()
