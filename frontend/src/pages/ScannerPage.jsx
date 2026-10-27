@@ -1,26 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   HiSearch, HiShieldCheck, HiShieldExclamation, HiExclamation,
   HiDownload, HiRefresh, HiClock, HiChevronDown, HiChevronUp,
-  HiScale, HiInformationCircle, HiBriefcase
+  HiScale, HiBriefcase, HiCheckCircle, HiLockClosed, HiLockOpen,
+  HiGlobeAlt, HiChip, HiChartBar
 } from 'react-icons/hi';
 import { scanURL, createCase } from '../services/api';
-import { generateDynamicRecommendations } from '../services/threatIntelligence';
+import { runEvidenceFusion } from '../utils/evidenceFusion';
 
+// Technical Details Visualizations
 import ThreatProfileRadar from '../components/threat/ThreatProfileRadar';
 import UrlDnaVisualizer from '../components/threat/UrlDnaVisualizer';
 import ScanTimeline from '../components/threat/ScanTimeline';
-import SecurityEducationPanel from '../components/threat/SecurityEducationPanel';
-
-// Phase 13 — Intelligence Fusion Components
-import ThreatEvidenceSummary from '../components/fusion/ThreatEvidenceSummary';
-import IntelligenceScorecard from '../components/fusion/IntelligenceScorecard';
-import ThreatReasoningGraph from '../components/fusion/ThreatReasoningGraph';
 import AttackIndicators from '../components/fusion/AttackIndicators';
 import ModelEvidencePanel from '../components/fusion/ModelEvidencePanel';
-import AnalystDecisionAssistant from '../components/fusion/AnalystDecisionAssistant';
+import ThreatReasoningGraph from '../components/fusion/ThreatReasoningGraph';
 import MissingEvidencePanel from '../components/fusion/MissingEvidencePanel';
 
 const SCAN_SEQUENCE = [
@@ -40,7 +36,10 @@ export default function ScannerPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [report, setReport] = useState(location.state?.report || null);
   const [error, setError] = useState(null);
-  const [showTechnicalFeatures, setShowTechnicalFeatures] = useState(false);
+
+  // Technical details collapse & tab state
+  const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
+  const [activeTechTab, setActiveTechTab] = useState('models');
 
   useEffect(() => {
     if (location.state?.autoScanUrl) {
@@ -116,13 +115,49 @@ export default function ScannerPage() {
     }
   };
 
+  // Helper to extract domain from URL
+  const getDomainFromUrl = (rawUrl) => {
+    if (!rawUrl) return 'N/A';
+    try {
+      const formatted = rawUrl.startsWith('http://') || rawUrl.startsWith('https://')
+        ? rawUrl
+        : `http://${rawUrl}`;
+      return new URL(formatted).hostname || rawUrl;
+    } catch {
+      return rawUrl;
+    }
+  };
+
+  // Compute evidence fusion data deterministically from scan report
+  const fusion = useMemo(() => {
+    if (!report) return null;
+    return runEvidenceFusion(report);
+  }, [report]);
+
+  // Handle Conflicting Results (Requirement 5)
+  // Check if ML prediction and evidence-based assessment disagree
+  const hasDisagreement = useMemo(() => {
+    if (!fusion || !report) return false;
+    const mlV = (report.verdict || '').toLowerCase();
+    const fusionV = (fusion.fusionVerdict || '').toLowerCase();
+    return mlV !== fusionV;
+  }, [fusion, report]);
+
+  // Categorize 22 extracted features for technical details
   const categorizeFeatures = (features) => {
     if (!features) return {};
     const categories = {
-      'URL Structure': ['url_length', 'domain_length', 'path_length', 'subdomain_count', 'url_depth', 'query_param_count'],
-      'Security & Protocol': ['has_https', 'has_ip_address', 'has_port', 'is_shortened', 'has_ssl_in_domain', 'has_punycode'],
-      'Suspicious Indicators': ['has_suspicious_tld', 'has_suspicious_keywords', 'has_at_symbol', 'has_hyphen_in_domain', 'double_slash_redirect', 'url_entropy'],
-      'Lexical Ratios': ['digit_ratio', 'letter_ratio', 'special_char_ratio', 'num_digits_in_domain']
+      'URL Structure & Length': [
+        'url_length', 'domain_length', 'path_length', 'num_dots',
+        'num_hyphens', 'num_underscores', 'num_slashes', 'num_query_params', 'num_fragments'
+      ],
+      'Security & Protocol Indicators': [
+        'has_https', 'has_ip_address', 'has_shortener', 'has_suspicious_tld', 'has_www', 'num_at_symbols'
+      ],
+      'Lexical & Entropy Metrics': [
+        'num_subdomains', 'num_digits_in_domain', 'digit_letter_ratio',
+        'url_entropy', 'path_entropy', 'special_char_ratio', 'has_suspicious_keywords'
+      ]
     };
     const categorized = {};
     Object.entries(categories).forEach(([catName, keys]) => {
@@ -134,20 +169,222 @@ export default function ScannerPage() {
     return categorized;
   };
 
-  const dynamicRecommendations = report ? generateDynamicRecommendations(report.features, report.verdict, report.risk_score) : [];
+  // Main Risk Factors: Top 3 most relevant risk factors actually detected (Requirement 1.C)
+  const topRiskFactors = useMemo(() => {
+    if (!report) return [];
+    const factors = [];
+
+    // 1. From activeAttackIndicators (high-level threat techniques actually detected)
+    if (fusion?.activeAttackIndicators?.length > 0) {
+      fusion.activeAttackIndicators.forEach((ind) => {
+        factors.push({
+          id: ind.id || ind.name,
+          title: ind.name,
+          description: ind.description,
+          severity: ind.severity || 'HIGH',
+        });
+      });
+    }
+
+    // 2. From shap_explanations that increase risk (if fewer than 3 factors found)
+    if (factors.length < 3 && report.shap_explanations?.length > 0) {
+      const riskExplanations = report.shap_explanations.filter(
+        (e) => e.impact === 'increases_risk' || (e.shap_value && e.shap_value > 0.04)
+      );
+      riskExplanations.forEach((exp) => {
+        const cleanTitle = exp.feature.replace(/_/g, ' ').toUpperCase();
+        if (!factors.some((f) => f.title.toUpperCase() === cleanTitle)) {
+          factors.push({
+            id: exp.feature,
+            title: cleanTitle,
+            description: exp.description,
+            severity: (exp.shap_value && exp.shap_value > 0.15) ? 'CRITICAL' : 'HIGH',
+          });
+        }
+      });
+    }
+
+    // 3. Fallback to top_reasons from existing backend analysis
+    if (factors.length < 3 && report.top_reasons?.length > 0) {
+      report.top_reasons
+        .filter((r) => r.includes('🚨') || r.includes('⚠️'))
+        .forEach((r, idx) => {
+          const cleanDesc = r.replace(/^[🚨⚠️✅]\s*/, '');
+          if (!factors.some((f) => f.description === cleanDesc)) {
+            factors.push({
+              id: `top-reason-${idx}`,
+              title: r.includes('🚨') ? 'Threat Indicator' : 'Security Anomaly',
+              description: cleanDesc,
+              severity: r.includes('🚨') ? 'HIGH' : 'MEDIUM',
+            });
+          }
+        });
+    }
+
+    return factors.slice(0, 3);
+  }, [report, fusion]);
+
+  // URL Security Details: 6 essential attributes (Requirement 1.D)
+  const urlSecurityDetails = useMemo(() => {
+    if (!report || !report.features) return [];
+    const feat = report.features;
+    const domain = getDomainFromUrl(report.url);
+    const urlLength = feat.url_length ?? (report.url?.length || 0);
+
+    return [
+      {
+        id: 'https',
+        label: 'HTTPS Encryption',
+        icon: feat.has_https === 1 ? '🔒' : '🔓',
+        value: feat.has_https === 1 ? 'Enabled (HTTPS)' : 'Disabled (HTTP)',
+        status: feat.has_https === 1 ? 'safe' : 'risk',
+        statusText: feat.has_https === 1 ? 'Encrypted' : 'Unencrypted',
+      },
+      {
+        id: 'domain',
+        label: 'Domain Name',
+        icon: '🌐',
+        value: domain,
+        status: 'safe',
+        statusText: `${feat.domain_length || domain.length} characters`,
+      },
+      {
+        id: 'length',
+        label: 'URL Length',
+        icon: '📏',
+        value: `${urlLength} characters`,
+        status: urlLength > 75 ? 'warning' : 'safe',
+        statusText: urlLength > 75 ? 'Unusually Long' : 'Standard Length',
+      },
+      {
+        id: 'tld',
+        label: 'Top-Level Domain (TLD)',
+        icon: '🏷️',
+        value: feat.has_suspicious_tld ? 'Suspicious TLD' : 'Standard TLD',
+        status: feat.has_suspicious_tld ? 'risk' : 'safe',
+        statusText: feat.has_suspicious_tld ? 'Abuse Prone' : 'Standard Registry',
+      },
+      {
+        id: 'ip',
+        label: 'IP Address Usage',
+        icon: '💻',
+        value: feat.has_ip_address ? 'Raw IP Hostname' : 'Standard Hostname',
+        status: feat.has_ip_address ? 'risk' : 'safe',
+        statusText: feat.has_ip_address ? 'Evasion Indicator' : 'Domain Resolution',
+      },
+      {
+        id: 'shortener',
+        label: 'URL Shortener',
+        icon: '🔗',
+        value: feat.has_shortener ? 'Shortened Service' : 'Direct Address',
+        status: feat.has_shortener ? 'risk' : 'safe',
+        statusText: feat.has_shortener ? 'Hidden Target' : 'Direct Link',
+      },
+    ];
+  }, [report]);
+
+  // Recommended Action Guidance (Requirement 1.E)
+  const recommendation = useMemo(() => {
+    if (!report) return null;
+    const verdict = (report.verdict || '').toLowerCase();
+    const risk = report.risk_score || 0;
+
+    if (verdict === 'phishing' || risk > 70) {
+      return {
+        type: 'phishing',
+        title: 'DO NOT OPEN OR PROVIDE SENSITIVE INFORMATION',
+        badge: 'HIGH THREAT',
+        guidelines: [
+          'Do not open this website, click internal links, or download files.',
+          'Never enter passwords, banking details, or confidential information.',
+          'Block this domain on network routers and firewalls.',
+          'If credentials were typed, change them immediately on the authentic service.'
+        ],
+      };
+    }
+    if (verdict === 'suspicious' || risk > 30) {
+      return {
+        type: 'suspicious',
+        title: 'AVOID ENTERING PASSWORDS OR PERSONAL INFORMATION',
+        badge: 'SUSPICIOUS INDICATORS',
+        guidelines: [
+          'Avoid entering credentials, PINs, or sensitive information until verified.',
+          'Carefully check the domain spelling for deceptive brand imitation.',
+          'Confirm authenticity through official channels before proceeding.',
+          'Exercise high caution with login forms and unexpected prompts.'
+        ],
+      };
+    }
+    return {
+      type: 'safe',
+      title: 'SAFE TO BROWSE - EXERCISE NORMAL DILIGENCE',
+      badge: 'LOW RISK',
+      guidelines: [
+        'No significant phishing indicators were detected in this URL.',
+        'Always verify unfamiliar links before entering credentials.',
+        'Ensure the browser address bar matches the expected organization.'
+      ],
+    };
+  }, [report]);
+
+  // Machine Learning essential metrics (Requirement 1.B)
+  const mlMetrics = useMemo(() => {
+    if (!report) return null;
+    const phishingProb = report.phishing_probability !== undefined
+      ? report.phishing_probability
+      : (report.risk_score / 100);
+    const phishingPct = (phishingProb * 100).toFixed(1);
+    const legitPct = ((1 - phishingProb) * 100).toFixed(1);
+    const confidencePct = report.confidence != null ? `${(report.confidence * 100).toFixed(1)}%` : 'N/A';
+
+    const agreement = fusion?.mlModelAgreement;
+    let agreementDisplay = 'Consensus Validated';
+    let agreementSub = 'Models agree on prediction';
+
+    if (agreement) {
+      const { agreementLevel, phishingVotes, totalModels, dissent } = agreement;
+      agreementDisplay = `${agreementLevel} (${phishingVotes}/${totalModels} Phishing Votes)`;
+      agreementSub = dissent
+        ? 'Dissenting model prediction observed'
+        : 'All evaluated models in agreement';
+    }
+
+    return {
+      phishingPct,
+      legitPct,
+      confidencePct,
+      agreementDisplay,
+      agreementSub,
+    };
+  }, [report, fusion]);
+
+  // Final verdict text & explanation (Requirement 1.A)
+  const verdictExplanation = useMemo(() => {
+    if (!report) return '';
+    const verdict = (report.verdict || '').toLowerCase();
+    if (verdict === 'phishing') {
+      return 'Multiple critical threat indicators and machine learning analysis identify this URL as high-risk phishing designed to mislead users or harvest credentials.';
+    }
+    if (verdict === 'suspicious') {
+      return 'This URL contains suspicious patterns or anomalies that deviate from typical trusted websites. Manual caution is advised.';
+    }
+    return 'No significant phishing indicators were detected. The URL structure, protocol, and domain characteristics are consistent with standard legitimate websites.';
+  }, [report]);
 
   return (
-    <div style={{ maxWidth: '960px', margin: '0 auto' }}>
-      <div className="scanner-hero">
-        <h1 className="page-title" style={{ fontSize: '36px', marginBottom: '8px' }}>
-          Analyze a Website
+    <div style={{ maxWidth: '960px', margin: '0 auto', paddingBottom: '40px' }}>
+      {/* Scanner Header Hero */}
+      <div className="scanner-hero" style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <h1 className="page-title" style={{ fontSize: '32px', marginBottom: '6px' }}>
+          PhishGuard Scanner
         </h1>
-        <p className="page-subtitle">
-          Submit any website URL for real-time machine learning analysis & explainable threat inspection
+        <p className="page-subtitle" style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+          Real-time AI URL threat detection & explainable security analysis
         </p>
       </div>
 
-      <div className="scanner-container">
+      {/* URL Input Box */}
+      <div className="scanner-container" style={{ marginBottom: '24px' }}>
         <div className="url-input-wrapper">
           <div className="url-input-group">
             <input
@@ -155,7 +392,7 @@ export default function ScannerPage() {
               type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com"
+              placeholder="Enter URL to analyze (e.g., https://example.com)"
               onKeyDown={(e) => e.key === 'Enter' && executeScan()}
               disabled={scanning}
             />
@@ -167,12 +404,12 @@ export default function ScannerPage() {
             >
               {scanning ? (
                 <>
-                  <span className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
+                  <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
                   Analyzing...
                 </>
               ) : (
                 <>
-                  <HiSearch /> ANALYZE WEBSITE
+                  <HiSearch /> SCAN URL
                 </>
               )}
             </button>
@@ -187,6 +424,7 @@ export default function ScannerPage() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
+              style={{ marginTop: '16px' }}
             >
               <div className="progress-bar-track">
                 <div
@@ -194,7 +432,7 @@ export default function ScannerPage() {
                   style={{ width: `${((currentStep + 1) / SCAN_SEQUENCE.length) * 100}%` }}
                 />
               </div>
-              <div className="progress-steps" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+              <div className="progress-steps" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginTop: '12px' }}>
                 {SCAN_SEQUENCE.map((seq, i) => (
                   <div
                     key={i}
@@ -203,10 +441,11 @@ export default function ScannerPage() {
                       padding: '8px 12px',
                       background: i === currentStep ? 'rgba(6, 182, 212, 0.1)' : 'var(--bg-card)',
                       borderRadius: 'var(--radius-sm)',
-                      border: '1px solid var(--border-color)'
+                      border: '1px solid var(--border-color)',
+                      textAlign: 'center'
                     }}
                   >
-                    <span className="step-icon">{i < currentStep ? '✓' : seq.icon}</span>
+                    <span className="step-icon" style={{ marginRight: '6px' }}>{i < currentStep ? '✓' : seq.icon}</span>
                     <span style={{ fontSize: '11px', fontWeight: '700', letterSpacing: '0.04em' }}>{seq.label}</span>
                   </div>
                 ))}
@@ -217,32 +456,32 @@ export default function ScannerPage() {
 
         {error && (
           <motion.div
-            className="disclaimer-banner alert-banner"
+            className="disagreement-banner"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            style={{ marginBottom: '24px' }}
+            style={{ marginTop: '16px', borderLeftColor: 'var(--accent-red)' }}
           >
-            <HiExclamation className="disclaimer-icon" style={{ color: 'var(--accent-red)' }} />
+            <HiExclamation className="banner-icon" style={{ color: 'var(--accent-red)' }} />
             <div>
-              <strong className="disclaimer-title">⚠️ ANALYSIS UNAVAILABLE</strong>
-              <p className="disclaimer-text">
-                PhishGuard could not complete the analysis. Details: <span className="font-mono">{error}</span>
-              </p>
+              <div className="banner-title" style={{ color: 'var(--accent-red)' }}>ANALYSIS UNAVAILABLE</div>
+              <div className="banner-desc">{error}</div>
             </div>
           </motion.div>
         )}
       </div>
 
-      {/* Security Report & Advanced Threat Intelligence */}
+      {/* ═══════════════════════════════════════════════════════════════
+          SIMPLIFIED SCAN RESULTS VIEW
+      ════════════════════════════════════════════════════════════════ */}
       <AnimatePresence>
         {report && (
           <motion.div
             className="report-container"
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.4 }}
           >
-            {/* Header Verdict Card */}
+            {/* ── 1.A FINAL VERDICT & RISK SCORE ───────────────────────── */}
             <div className={`report-header ${report.verdict?.toLowerCase()}`}>
               <div className="verdict-section">
                 <div className={`verdict-icon ${report.verdict?.toLowerCase()}`}>
@@ -260,18 +499,26 @@ export default function ScannerPage() {
                     color: report.verdict === 'Phishing' ? 'var(--accent-red)' :
                            report.verdict === 'Suspicious' ? 'var(--accent-yellow)' : 'var(--accent-green)'
                   }}>
-                    {report.risk_level ? `${report.risk_level} RISK LEVEL` : (report.verdict === 'Phishing' ? 'CRITICAL THREAT' : report.verdict === 'Suspicious' ? 'ELEVATED RISK' : 'LOW RISK')}
+                    {report.verdict?.toUpperCase()} VERDICT
                   </div>
-                  <h2 className={report.verdict?.toLowerCase()}>
+
+                  <h2 className={report.verdict?.toLowerCase()} style={{ margin: '0 0 6px 0', fontSize: '26px' }}>
                     {report.verdict === 'Phishing' ? 'PHISHING DETECTED' :
-                     report.verdict === 'Suspicious' ? 'SUSPICIOUS INDICATORS DETECTED' :
-                     'NO SIGNIFICANT PHISHING INDICATORS DETECTED'}
+                     report.verdict === 'Suspicious' ? 'SUSPICIOUS URL' :
+                     'SAFE - LEGITIMATE URL'}
                   </h2>
-                  <div className="verdict-url">{report.url}</div>
+
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', lineHeight: '1.45', maxWidth: '520px' }}>
+                    {verdictExplanation}
+                  </p>
+
+                  <div className="verdict-url" title={report.url}>
+                    {report.url}
+                  </div>
                 </div>
               </div>
 
-              {/* Risk Gauge */}
+              {/* Semicircular Risk Gauge */}
               <div className="risk-gauge">
                 <div className="gauge-container" style={{ width: '130px', height: '70px', position: 'relative' }}>
                   <svg viewBox="0 0 120 70" style={{ width: '130px', height: '70px' }}>
@@ -298,204 +545,212 @@ export default function ScannerPage() {
               </div>
             </div>
 
-            {/* 8. Security Timeline */}
-            <ScanTimeline />
-
-            {/* 6. AI Assessment Panel */}
-            <div className="report-section" style={{ marginBottom: '24px' }}>
-              <h3>🤖 AI Model Assessment & Ensemble Probability</h3>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                The model's prediction is based on the URL features extracted during this scan. Predictions are probabilistic and should not be treated as a security guarantee.
-              </p>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
-                <div className="card-glass" style={{ padding: '16px' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Primary Verified Model</div>
-                  <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-cyan)', marginTop: '4px' }}>
-                    {report.best_model_name ? report.best_model_name.replace(/_/g, ' ').toUpperCase() : 'ENSEMBLE PIPELINE'}
+            {/* ── REQUIREMENT 5: CONFLICTING RESULTS WARNING ──────────── */}
+            {hasDisagreement && (
+              <div className="disagreement-banner">
+                <HiExclamation className="banner-icon" />
+                <div>
+                  <div className="banner-title">
+                    The ML prediction and evidence-based assessment disagree. Manual verification is recommended.
+                  </div>
+                  <div className="banner-desc">
+                    Machine Learning ensemble classified this URL as <strong>{report.verdict}</strong>, 
+                    while evidence-based feature analysis evaluated to <strong>{fusion.fusionVerdict}</strong>. 
+                    Exercise additional caution before proceeding.
                   </div>
                 </div>
+              </div>
+            )}
 
-                <div className="card-glass" style={{ padding: '16px' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Model Confidence</div>
-                  <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                    {(report.confidence * 100).toFixed(1)}%
+            {/* ── 1.B MACHINE LEARNING PREDICTION ──────────────────────── */}
+            <div className="scan-result-card">
+              <div className="scan-section-header">
+                <div>
+                  <div className="scan-section-title">
+                    <HiChip style={{ color: 'var(--accent-cyan)' }} /> Machine Learning Prediction
                   </div>
-                </div>
-
-                <div className="card-glass" style={{ padding: '16px' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Phishing Probability</div>
-                  <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-red)', marginTop: '4px' }}>
-                    {( (report.phishing_probability !== undefined ? report.phishing_probability : (report.risk_score / 100)) * 100 ).toFixed(1)}%
-                  </div>
-                </div>
-
-                <div className="card-glass" style={{ padding: '16px' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Legitimate Probability</div>
-                  <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-green)', marginTop: '4px' }}>
-                    {( (1 - (report.phishing_probability !== undefined ? report.phishing_probability : (report.risk_score / 100))) * 100 ).toFixed(1)}%
+                  <div className="scan-section-subtitle">
+                    Core probabilistic classification from the 4-model ensemble pipeline
                   </div>
                 </div>
               </div>
 
-              {/* Model Predictions Progress Bars */}
-              {report.model_predictions && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {report.model_predictions.map((m, idx) => {
-                    const phishPct = (m.probability * 100).toFixed(1);
-                    const legitPct = ((1 - m.probability) * 100).toFixed(1);
-                    return (
-                      <div key={idx} style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
-                          <span style={{ fontWeight: '700' }}>{m.model_name}</span>
-                          <span className={`badge ${m.prediction === 1 ? 'phishing' : 'safe'}`}>
-                            {m.prediction === 1 ? `Phishing (${phishPct}%)` : `Safe (${legitPct}%)`}
-                          </span>
-                        </div>
-                        <div style={{ height: '8px', background: 'var(--bg-primary)', borderRadius: '4px', overflow: 'hidden', display: 'flex' }}>
-                          <div style={{ width: `${phishPct}%`, background: 'var(--accent-red)' }} title={`Phishing: ${phishPct}%`} />
-                          <div style={{ width: `${legitPct}%`, background: 'var(--accent-green)' }} title={`Legitimate: ${legitPct}%`} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              {mlMetrics && (
+                <>
+                  <div className="ml-metrics-grid">
+                    {/* Phishing Probability */}
+                    <div className="ml-metric-box">
+                      <span className="metric-label">Phishing Probability</span>
+                      <span className="metric-value" style={{ color: 'var(--accent-red)' }}>
+                        {mlMetrics.phishingPct}%
+                      </span>
+                      <span className="metric-subtext">Likelihood of malicious intent</span>
+                    </div>
+
+                    {/* Legitimate Probability */}
+                    <div className="ml-metric-box">
+                      <span className="metric-label">Legitimate Probability</span>
+                      <span className="metric-value" style={{ color: 'var(--accent-green)' }}>
+                        {mlMetrics.legitPct}%
+                      </span>
+                      <span className="metric-subtext">Likelihood of safe destination</span>
+                    </div>
+
+                    {/* Model Confidence */}
+                    <div className="ml-metric-box">
+                      <span className="metric-label">Model Confidence</span>
+                      <span className="metric-value" style={{ color: 'var(--accent-cyan)' }}>
+                        {mlMetrics.confidencePct}
+                      </span>
+                      <span className="metric-subtext">Ensemble certainty score</span>
+                    </div>
+
+                    {/* Model Agreement */}
+                    <div className="ml-metric-box">
+                      <span className="metric-label">Model Agreement</span>
+                      <span className="metric-value" style={{
+                        fontSize: '18px',
+                        color: fusion?.mlModelAgreement?.dissent ? 'var(--accent-yellow)' : 'var(--text-primary)'
+                      }}>
+                        {fusion?.mlModelAgreement?.agreementLevel || 'Consensus'}
+                      </span>
+                      <span className="metric-subtext">{mlMetrics.agreementDisplay}</span>
+                    </div>
+                  </div>
+
+                  <div className="ml-agreement-note">
+                    <HiChartBar style={{ color: 'var(--accent-cyan)', fontSize: '16px', flexShrink: 0 }} />
+                    <span>
+                      Ensemble evaluated across 4 verified classifiers (Random Forest, Gradient Boosting, Logistic Regression, Decision Tree). Individual model breakdowns are available in <strong>Technical Details</strong> below.
+                    </span>
+                  </div>
+                </>
               )}
             </div>
 
-            {/* 1. Threat Profile & 3. Threat Radar */}
-            <ThreatProfileRadar features={report.features} />
+            {/* ── 1.C MAIN RISK FACTORS ────────────────────────────────── */}
+            <div className="scan-result-card">
+              <div className="scan-section-header">
+                <div>
+                  <div className="scan-section-title">
+                    <HiExclamation style={{ color: 'var(--accent-yellow)' }} /> Main Risk Factors
+                  </div>
+                  <div className="scan-section-subtitle">
+                    Top detected indicators identified by feature extraction & threat analysis
+                  </div>
+                </div>
+                <span className="badge" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+                  {topRiskFactors.length} Flagged
+                </span>
+              </div>
 
-            {/* 2. PhishGuard URL DNA Fingerprint */}
-            <UrlDnaVisualizer features={report.features} />
-
-            {/* 4. Advanced Risk Factors (SHAP Feature Explanations) */}
-            <div className="report-section" style={{ marginBottom: '24px' }}>
-              <h3>🧠 Feature-Based Model Explanation (Risk Factors)</h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                Key observed features influencing this classification decision:
-              </p>
-
-              <div className="reasons-list">
-                {report.shap_explanations?.slice(0, 8).map((exp, idx) => {
-                  const isHighImpact = exp.impact === 'increases_risk' || exp.shap_value > 0.05;
-                  const observedVal = report.features ? report.features[exp.feature] : exp.value;
-
-                  return (
+              <div className="risk-factors-list">
+                {topRiskFactors.length > 0 ? (
+                  topRiskFactors.map((factor, idx) => (
                     <div
-                      key={idx}
-                      className={`reason-item ${isHighImpact ? 'risk' : 'safe'}`}
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}
+                      key={factor.id || idx}
+                      className={`risk-factor-card ${
+                        factor.severity === 'CRITICAL' ? '' :
+                        factor.severity === 'HIGH' ? '' :
+                        factor.severity === 'MEDIUM' ? 'medium-severity' : 'low-severity'
+                      }`}
                     >
-                      <div>
-                        <div style={{ fontWeight: '700', fontSize: '13px', color: 'var(--text-primary)' }}>
-                          {exp.feature.replace(/_/g, ' ').toUpperCase()}
+                      <div className="risk-factor-info">
+                        <div className="risk-factor-title">
+                          <span>{factor.severity === 'CRITICAL' ? '🚨' : factor.severity === 'HIGH' ? '⚠️' : '🔍'}</span>
+                          <span>{factor.title}</span>
                         </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                          Observed Value: <span className="font-mono" style={{ color: 'var(--accent-cyan)' }}>{String(observedVal)}</span>
+                        <div className="risk-factor-desc">
+                          {factor.description}
                         </div>
                       </div>
-                      <span className="badge" style={{
-                        background: 'var(--bg-card)',
-                        color: isHighImpact ? 'var(--accent-red)' : 'var(--accent-green)'
-                      }}>
-                        {isHighImpact ? 'HIGH IMPACT (RISK)' : 'NEUTRAL / SAFE'}
+                      <span className={`risk-severity-badge ${factor.severity?.toLowerCase() || 'high'}`}>
+                        {factor.severity}
                       </span>
                     </div>
-                  );
-                })}
+                  ))
+                ) : (
+                  <div className="risk-factor-card safe-state">
+                    <div className="risk-factor-info">
+                      <div className="risk-factor-title">
+                        <span>✅</span>
+                        <span>No Significant Threat Factors Detected</span>
+                      </div>
+                      <div className="risk-factor-desc">
+                        No anomalous URL lengths, suspicious keywords, excessive subdomains, or high-risk domain patterns were detected.
+                      </div>
+                    </div>
+                    <span className="risk-severity-badge safe">
+                      CLEAR
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* 5. Dynamic Recommendation Engine */}
-            <div className="report-section" style={{ marginBottom: '24px' }}>
-              <h3>🛡️ Dynamic Security Recommendations</h3>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                Actionable guidelines triggered by specific detected URL features:
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
-                {dynamicRecommendations.map((rec, i) => (
-                  <div key={i} className={`recommendation-card ${rec.type}`}>
-                    <span className="icon">{rec.icon}</span>
-                    <span>{rec.text}</span>
+            {/* ── 1.D URL SECURITY DETAILS ─────────────────────────────── */}
+            <div className="scan-result-card">
+              <div className="scan-section-header">
+                <div>
+                  <div className="scan-section-title">
+                    <HiLockClosed style={{ color: 'var(--accent-cyan)' }} /> URL Security Details
+                  </div>
+                  <div className="scan-section-subtitle">
+                    Structural and security protocol attributes extracted from the URL
+                  </div>
+                </div>
+              </div>
+
+              <div className="url-security-grid">
+                {urlSecurityDetails.map((detail) => (
+                  <div key={detail.id} className="security-detail-item">
+                    <div className="detail-label">
+                      <span>{detail.icon}</span>
+                      <span>{detail.label}</span>
+                    </div>
+                    <div className="detail-value" title={detail.value}>
+                      {detail.value}
+                    </div>
+                    <div className={`detail-status ${detail.status}`}>
+                      <span>{detail.status === 'safe' ? '✓' : detail.status === 'risk' ? '✗' : '•'}</span>
+                      <span>{detail.statusText}</span>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* 10. Security Education Panel */}
-            <SecurityEducationPanel features={report.features} />
+            {/* ── 1.E RECOMMENDED ACTION ───────────────────────────────── */}
+            {recommendation && (
+              <div className={`recommendation-action-card ${recommendation.type}`}>
+                <div className="action-card-header">
+                  <div className="action-card-title">
+                    <span>{recommendation.type === 'phishing' ? '🛑' : recommendation.type === 'suspicious' ? '⚠️' : '🛡️'}</span>
+                    <span>{recommendation.title}</span>
+                  </div>
+                  <span className={`risk-severity-badge ${recommendation.type === 'phishing' ? 'critical' : recommendation.type === 'suspicious' ? 'medium' : 'safe'}`}>
+                    {recommendation.badge}
+                  </span>
+                </div>
 
-            {/* ═══════════════════════════════════════════════════════════
-                PHASE 13 — INTELLIGENCE FUSION ENGINE
-            ════════════════════════════════════════════════════════════ */}
-
-            {/* Phase 13.1 — Threat Evidence Summary */}
-            <ThreatEvidenceSummary scanReport={report} />
-
-            {/* Phase 13.2 — Intelligence Scorecard */}
-            <IntelligenceScorecard scanReport={report} />
-
-            {/* Phase 13.3 — Model vs Evidence Separation */}
-            <ModelEvidencePanel scanReport={report} />
-
-            {/* Phase 13.4 — Attack Indicator Classification */}
-            <AttackIndicators scanReport={report} />
-
-            {/* Phase 13.5 — Threat Reasoning Graph */}
-            <ThreatReasoningGraph scanReport={report} />
-
-            {/* Phase 13.6 — Analyst Decision Assistant */}
-            <AnalystDecisionAssistant scanReport={report} />
-
-            {/* Phase 13.7 — Missing Evidence Panel */}
-            <MissingEvidencePanel scanReport={report} />
-
-            {/* 22-Feature Analysis */}
-            <div className="report-section" style={{ marginBottom: '24px' }}>
-              <div
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-                onClick={() => setShowTechnicalFeatures(!showTechnicalFeatures)}
-              >
-                <h3>🔬 Technical 22-Feature Analysis</h3>
-                <button className="btn btn-outline" style={{ padding: '6px 12px', fontSize: '12px' }}>
-                  {showTechnicalFeatures ? <><HiChevronUp /> Hide Features</> : <><HiChevronDown /> Expand 22 Features</>}
-                </button>
+                <div className="action-guidance-list">
+                  {recommendation.guidelines.map((guide, idx) => (
+                    <div key={idx} className="action-guidance-item">
+                      <span className="bullet">›</span>
+                      <span>{guide}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
+            )}
 
-              <AnimatePresence>
-                {showTechnicalFeatures && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    style={{ marginTop: '16px' }}
-                  >
-                    {Object.entries(categorizeFeatures(report.features)).map(([catName, featList]) => (
-                      <div key={catName} style={{ marginBottom: '16px' }}>
-                        <h4 style={{ fontSize: '12px', color: 'var(--accent-cyan)', marginBottom: '8px', textTransform: 'uppercase' }}>
-                          {catName}
-                        </h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '8px' }}>
-                          {featList.map(({ key, value }) => (
-                            <div key={key} className="feature-item" style={{ fontSize: '12px' }}>
-                              <span className="feature-name">{key}</span>
-                              <span className="feature-value">
-                                {typeof value === 'number' ? (Number.isInteger(value) ? value : value.toFixed(4)) : String(value)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Result Actions */}
-            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button className="btn btn-primary" style={{ background: 'var(--accent-cyan)', color: '#000', fontWeight: '800' }} onClick={handleStartInvestigation}>
+            {/* ── ACTION BUTTONS ───────────────────────────────────────── */}
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '24px' }}>
+              <button
+                className="btn btn-primary"
+                style={{ background: 'var(--accent-cyan)', color: '#000', fontWeight: '800' }}
+                onClick={handleStartInvestigation}
+              >
                 <HiBriefcase /> START INVESTIGATION
               </button>
               <button className="btn btn-primary" onClick={() => { setReport(null); setUrl(''); }}>
@@ -508,8 +763,197 @@ export default function ScannerPage() {
                 <HiScale /> COMPARE SCAN
               </button>
               <button className="btn btn-outline" onClick={handleDownloadReport}>
-                <HiDownload /> GENERATE REPORT (JSON)
+                <HiDownload /> DOWNLOAD REPORT (JSON)
               </button>
+            </div>
+
+            {/* ── 2. COLLAPSIBLE TECHNICAL DETAILS SECTION ────────────── */}
+            <div style={{ marginTop: '32px', borderTop: '1px solid var(--border-color)', paddingTop: '24px' }}>
+              <button
+                id="technical-details-toggle"
+                className="technical-details-toggle"
+                onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '18px' }}>🔬</span>
+                  <span>Technical Details & Advanced Threat Analysis</span>
+                  <span className="badge" style={{ background: 'var(--bg-elevated)', color: 'var(--accent-cyan)', fontSize: '11px' }}>
+                    22 Features · ML Models · Threat Graph
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)' }}>
+                  <span>{showTechnicalDetails ? 'Collapse' : 'Expand'}</span>
+                  {showTechnicalDetails ? <HiChevronUp /> : <HiChevronDown />}
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {showTechnicalDetails && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    {/* Sub-tabs for clean technical exploration */}
+                    <div className="tech-tabs-nav">
+                      <button
+                        className={`tech-tab-btn ${activeTechTab === 'models' ? 'active' : ''}`}
+                        onClick={() => setActiveTechTab('models')}
+                      >
+                        🤖 Model Ensemble ({report.model_predictions?.length || 4})
+                      </button>
+                      <button
+                        className={`tech-tab-btn ${activeTechTab === 'features' ? 'active' : ''}`}
+                        onClick={() => setActiveTechTab('features')}
+                      >
+                        ⚡ 22 Features & DNA
+                      </button>
+                      <button
+                        className={`tech-tab-btn ${activeTechTab === 'threat' ? 'active' : ''}`}
+                        onClick={() => setActiveTechTab('threat')}
+                      >
+                        📊 Threat Radar & Graph
+                      </button>
+                      <button
+                        className={`tech-tab-btn ${activeTechTab === 'timeline' ? 'active' : ''}`}
+                        onClick={() => setActiveTechTab('timeline')}
+                      >
+                        🕒 Limitations & Timeline
+                      </button>
+                    </div>
+
+                    {/* Tab 1: Model Ensemble Details */}
+                    {activeTechTab === 'models' && (
+                      <div>
+                        {/* Per-model predictions */}
+                        {report.model_predictions && (
+                          <div className="scan-result-card" style={{ marginBottom: '20px' }}>
+                            <div className="scan-section-title" style={{ marginBottom: '14px' }}>
+                              Individual Model Predictions
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                              {report.model_predictions.map((m, idx) => {
+                                const phishPct = (m.probability * 100).toFixed(1);
+                                const legitPct = ((1 - m.probability) * 100).toFixed(1);
+                                return (
+                                  <div key={idx} style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+                                      <span style={{ fontWeight: '700' }}>{m.model_name}</span>
+                                      <span className={`badge ${m.prediction === 1 ? 'phishing' : 'safe'}`}>
+                                        {m.prediction === 1 ? `Phishing (${phishPct}%)` : `Safe (${legitPct}%)`}
+                                      </span>
+                                    </div>
+                                    <div style={{ height: '8px', background: 'var(--bg-primary)', borderRadius: '4px', overflow: 'hidden', display: 'flex' }}>
+                                      <div style={{ width: `${phishPct}%`, background: 'var(--accent-red)' }} title={`Phishing: ${phishPct}%`} />
+                                      <div style={{ width: `${legitPct}%`, background: 'var(--accent-green)' }} title={`Legitimate: ${legitPct}%`} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Model vs Evidence Separation Panel */}
+                        <ModelEvidencePanel scanReport={report} />
+                      </div>
+                    )}
+
+                    {/* Tab 2: 22 Features & DNA */}
+                    {activeTechTab === 'features' && (
+                      <div>
+                        {/* URL DNA Visualizer */}
+                        <UrlDnaVisualizer features={report.features} />
+
+                        {/* 22 Extracted Features List */}
+                        <div className="scan-result-card" style={{ marginBottom: '20px' }}>
+                          <div className="scan-section-title" style={{ marginBottom: '14px' }}>
+                            Extracted URL Feature Set (22 Attributes)
+                          </div>
+                          {Object.entries(categorizeFeatures(report.features)).map(([catName, featList]) => (
+                            <div key={catName} style={{ marginBottom: '16px' }}>
+                              <h4 style={{ fontSize: '12px', color: 'var(--accent-cyan)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                {catName}
+                              </h4>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '8px' }}>
+                                {featList.map(({ key, value }) => (
+                                  <div key={key} className="feature-item" style={{ fontSize: '12px', padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>{key}</span>
+                                    <span style={{ fontFamily: 'monospace', color: 'var(--accent-cyan)', fontWeight: '600' }}>
+                                      {typeof value === 'number' ? (Number.isInteger(value) ? value : value.toFixed(4)) : String(value)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* SHAP Feature Explanations */}
+                        {report.shap_explanations?.length > 0 && (
+                          <div className="scan-result-card">
+                            <div className="scan-section-title" style={{ marginBottom: '14px' }}>
+                              Feature-Based Model Explanation (SHAP Impacts)
+                            </div>
+                            <div className="reasons-list">
+                              {report.shap_explanations.slice(0, 8).map((exp, idx) => {
+                                const isRisk = exp.impact === 'increases_risk' || exp.shap_value > 0.05;
+                                return (
+                                  <div key={idx} className={`reason-item ${isRisk ? 'risk' : 'safe'}`}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                                      <div>
+                                        <strong style={{ color: 'var(--text-primary)', fontSize: '13px' }}>
+                                          {exp.feature.replace(/_/g, ' ').toUpperCase()}
+                                        </strong>
+                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                          {exp.description}
+                                        </div>
+                                      </div>
+                                      <span className="badge" style={{
+                                        background: isRisk ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                                        color: isRisk ? 'var(--accent-red)' : 'var(--accent-green)'
+                                      }}>
+                                        {isRisk ? 'Increases Risk' : 'Protective Factor'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Tab 3: Threat Radar & Graph */}
+                    {activeTechTab === 'threat' && (
+                      <div>
+                        {/* Threat Profile Radar */}
+                        <ThreatProfileRadar features={report.features} />
+
+                        {/* Attack Indicators */}
+                        <AttackIndicators scanReport={report} />
+
+                        {/* Threat Reasoning Graph */}
+                        <ThreatReasoningGraph scanReport={report} />
+                      </div>
+                    )}
+
+                    {/* Tab 4: Limitations & Timeline */}
+                    {activeTechTab === 'timeline' && (
+                      <div>
+                        {/* Missing Evidence & Scope */}
+                        <MissingEvidencePanel scanReport={report} />
+
+                        {/* Scan Timeline */}
+                        <ScanTimeline />
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
         )}
