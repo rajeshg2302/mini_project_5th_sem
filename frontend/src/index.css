@@ -370,6 +370,43 @@ body {
   transform: none;
 }
 
+/* Input action buttons: Paste & Clear */
+.input-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.paste-btn {
+  color: var(--accent-cyan);
+}
+
+.paste-btn:hover {
+  color: white;
+  background: rgba(0, 212, 255, 0.12);
+}
+
+.clear-btn {
+  color: var(--text-muted);
+  font-size: 18px;
+  padding: 0 12px;
+}
+
+.clear-btn:hover {
+  color: var(--danger);
+  background: rgba(255, 77, 77, 0.1);
+}
+
+
 .scan-button.scanning {
   background: var(--bg-elevated);
 }

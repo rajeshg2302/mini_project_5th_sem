@@ -5,7 +5,7 @@ import {
   HiSearch, HiShieldCheck, HiShieldExclamation, HiExclamation,
   HiDownload, HiRefresh, HiClock, HiChevronDown, HiChevronUp,
   HiScale, HiBriefcase, HiCheckCircle, HiLockClosed, HiLockOpen,
-  HiGlobeAlt, HiChip, HiChartBar
+  HiGlobeAlt, HiChip, HiChartBar, HiX, HiClipboardCopy
 } from 'react-icons/hi';
 import { scanURL, createCase } from '../services/api';
 import { runEvidenceFusion } from '../utils/evidenceFusion';
@@ -112,6 +112,16 @@ export default function ScannerPage() {
     } catch (err) {
       console.error('Failed to create investigation case:', err);
       alert('Could not start investigation case.');
+    }
+  };
+
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) setUrl(text.trim());
+    } catch {
+      // Fallback: focus the input so user can paste manually
+      document.getElementById('scanner-url-input')?.focus();
     }
   };
 
@@ -396,6 +406,31 @@ export default function ScannerPage() {
               onKeyDown={(e) => e.key === 'Enter' && executeScan()}
               disabled={scanning}
             />
+
+            {/* Paste button — visible only when input is empty */}
+            {!url && !scanning && (
+              <button
+                id="scanner-paste-button"
+                className="input-action-btn paste-btn"
+                onClick={handlePaste}
+                title="Paste URL from clipboard"
+              >
+                <HiClipboardCopy /> Paste
+              </button>
+            )}
+
+            {/* Clear button — visible only when input has text */}
+            {url && !scanning && (
+              <button
+                id="scanner-clear-button"
+                className="input-action-btn clear-btn"
+                onClick={() => setUrl('')}
+                title="Clear URL"
+              >
+                <HiX />
+              </button>
+            )}
+
             <button
               id="scanner-scan-button"
               className={`scan-button ${scanning ? 'scanning' : ''}`}
