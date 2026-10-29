@@ -48,7 +48,7 @@ function MainLayout() {
       <Sidebar isOpen={sidebarOpen} onCloseMobile={closeSidebarMobile} />
 
       {/* Main Content Area with Header Shell */}
-      <div className="main-wrapper">
+      <div className={`main-wrapper ${collapsed ? 'sidebar-collapsed' : ''}`}>
         <Header
           onToggleSidebar={toggleSidebar}
           sidebarOpen={sidebarOpen}
@@ -56,7 +56,7 @@ function MainLayout() {
           onOpenGlobalSearch={() => setGlobalSearchOpen(true)}
         />
 
-        <main className={`main-content ${collapsed ? 'sidebar-collapsed' : ''}`}>
+        <main className="main-content">
           <Routes>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/scan" element={<ScannerPage />} />

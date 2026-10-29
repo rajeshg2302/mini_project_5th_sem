@@ -259,63 +259,65 @@ export default function CasesPage() {
             <span>Showing {cases.length} of {total} investigation cases</span>
           </div>
 
-          <table className="history-table">
-            <thead>
-              <tr>
-                <th>Case Number</th>
-                <th>Target URL</th>
-                <th>Verdict</th>
-                <th>Risk Score</th>
-                <th>Status</th>
-                <th>Created At</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cases.map((c) => (
-                <tr key={c.id} onClick={() => navigate(`/cases/${c.id}`)}>
-                  <td className="font-mono" style={{ fontSize: '13px', fontWeight: '700', color: 'var(--accent-cyan)' }}>
-                    #{c.case_number}
-                  </td>
-                  <td className="url-cell">{c.url}</td>
-                  <td>
-                    <span className={`badge ${c.verdict?.toLowerCase()}`}>
-                      {c.verdict}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`score-badge ${c.risk_score <= 30 ? 'low' : c.risk_score <= 70 ? 'medium' : 'high'}`}>
-                      {c.risk_score} / 100
-                    </span>
-                  </td>
-                  <td>{getStatusBadge(c.status)}</td>
-                  <td style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                    {c.created_at ? new Date(c.created_at).toLocaleString() : 'N/A'}
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
-                      <button
-                        className="btn btn-outline"
-                        style={{ padding: '6px 12px', fontSize: '12px' }}
-                        onClick={() => navigate(`/cases/${c.id}`)}
-                        title="Investigate Case"
-                      >
-                        <HiEye /> Investigate
-                      </button>
-                      <button
-                        className="btn btn-danger"
-                        style={{ padding: '6px 12px', fontSize: '12px' }}
-                        onClick={(e) => handleDelete(c.id, c.case_number, e)}
-                        title="Delete Case Record"
-                      >
-                        <HiTrash /> Delete
-                      </button>
-                    </div>
-                  </td>
+          <div className="table-responsive history-table-container">
+            <table className="history-table">
+              <thead>
+                <tr>
+                  <th>Case Number</th>
+                  <th>Target URL</th>
+                  <th>Verdict</th>
+                  <th>Risk Score</th>
+                  <th>Status</th>
+                  <th>Created At</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {cases.map((c) => (
+                  <tr key={c.id} onClick={() => navigate(`/cases/${c.id}`)}>
+                    <td className="font-mono" style={{ fontSize: '13px', fontWeight: '700', color: 'var(--accent-cyan)' }}>
+                      #{c.case_number}
+                    </td>
+                    <td className="url-cell" title={c.url}>{c.url}</td>
+                    <td>
+                      <span className={`badge ${c.verdict?.toLowerCase()}`}>
+                        {c.verdict}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`score-badge ${c.risk_score <= 30 ? 'low' : c.risk_score <= 70 ? 'medium' : 'high'}`}>
+                        {c.risk_score} / 100
+                      </span>
+                    </td>
+                    <td>{getStatusBadge(c.status)}</td>
+                    <td style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      {c.created_at ? new Date(c.created_at).toLocaleString() : 'N/A'}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className="btn btn-outline"
+                          style={{ padding: '6px 12px', fontSize: '12px' }}
+                          onClick={() => navigate(`/cases/${c.id}`)}
+                          title="Investigate Case"
+                        >
+                          <HiEye /> Investigate
+                        </button>
+                        <button
+                          className="btn btn-danger"
+                          style={{ padding: '6px 12px', fontSize: '12px' }}
+                          onClick={(e) => handleDelete(c.id, c.case_number, e)}
+                          title="Delete Case Record"
+                        >
+                          <HiTrash /> Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </motion.div>
       )}
     </div>

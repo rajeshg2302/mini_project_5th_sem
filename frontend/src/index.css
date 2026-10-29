@@ -82,21 +82,23 @@ body {
   display: flex;
   min-height: 100vh;
   width: 100%;
+  overflow-x: hidden;
 }
 
 .main-content {
   flex: 1;
-  margin-left: 260px;
+  margin-left: 0;
   padding: 32px;
-  min-height: 100vh;
-  transition: margin-left var(--transition-normal);
+  min-height: calc(100vh - 64px);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;
     padding: 16px;
-    padding-top: 72px;
   }
 }
 
@@ -720,30 +722,42 @@ body {
 .cm-fp { background: rgba(245, 158, 11, 0.15); color: var(--accent-yellow); }
 .cm-fn { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
 
-/* ─── History Table ────────────────────────────────────── */
+/* ─── History Table & Responsive Tables ────────────────── */
+
+.table-responsive,
+.history-table-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
 
 .history-table {
   width: 100%;
+  min-width: 760px;
   border-collapse: separate;
   border-spacing: 0 4px;
 }
 
 .history-table th {
   text-align: left;
-  padding: 12px 16px;
+  padding: 12px 14px;
   font-size: 12px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .history-table td {
-  padding: 14px 16px;
-  font-size: 14px;
+  padding: 12px 14px;
+  font-size: 13px;
   background: var(--bg-card);
   border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
 }
 
 .history-table tr td:first-child {
@@ -769,7 +783,8 @@ body {
   font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   color: var(--accent-cyan);
-  max-width: 400px;
+  max-width: 280px;
+  min-width: 130px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1062,7 +1077,16 @@ body {
   flex-direction: column;
   min-height: 100vh;
   margin-left: 260px;
-  transition: margin-left var(--transition-normal);
+  width: calc(100% - 260px);
+  max-width: calc(100% - 260px);
+  min-width: 0;
+  transition: margin-left var(--transition-normal), width var(--transition-normal), max-width var(--transition-normal);
+}
+
+.main-wrapper.sidebar-collapsed {
+  margin-left: 72px;
+  width: calc(100% - 72px);
+  max-width: calc(100% - 72px);
 }
 
 .top-header {
@@ -1312,8 +1336,11 @@ body {
 /* ─── Responsive Media Queries ──────────────────────────── */
 
 @media (max-width: 1024px) {
-  .main-wrapper {
+  .main-wrapper,
+  .main-wrapper.sidebar-collapsed {
     margin-left: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .sidebar {
@@ -1467,10 +1494,6 @@ body {
 .sidebar.collapsed .nav-icon {
   font-size: 20px;
   width: auto;
-}
-
-.main-content.sidebar-collapsed {
-  margin-left: 72px;
 }
 
 /* ─── Simplified Scan Results Page Styles ─────────────────── */

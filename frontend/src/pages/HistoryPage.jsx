@@ -271,74 +271,76 @@ export default function HistoryPage() {
             <span>Page {page + 1} of {totalPages || 1}</span>
           </div>
 
-          <table className="history-table">
-            <thead>
-              <tr>
-                <th>Scan ID</th>
-                <th>URL</th>
-                <th>Verdict</th>
-                <th>Risk Score</th>
-                <th>AI Confidence</th>
-                <th>Timestamp</th>
-                <th style={{ textAlign: 'center' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scans.map((scan) => (
-                <tr key={scan.id} onClick={() => handleViewReport(scan)}>
-                  <td style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'var(--text-muted)' }}>
-                    #{scan.id}
-                  </td>
-                  <td className="url-cell">{scan.url}</td>
-                  <td>
-                    <span className={`badge ${scan.verdict?.toLowerCase()}`}>
-                      {scan.verdict}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`score-badge ${scan.risk_score <= 30 ? 'low' : scan.risk_score <= 70 ? 'medium' : 'high'}`}>
-                      {scan.risk_score} / 100
-                    </span>
-                  </td>
-                  <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                    {scan.confidence !== undefined ? (scan.confidence * 100).toFixed(1) : (scan.risk_score).toFixed(1)}%
-                  </td>
-                  <td style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                    {new Date(scan.created_at).toLocaleString()}
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
-                      <button
-                        className="btn btn-outline"
-                        style={{ padding: '5px 10px', fontSize: '12px' }}
-                        onClick={() => handleViewReport(scan)}
-                        title="View Security Report"
-                      >
-                        <HiEye /> VIEW
-                      </button>
-                      <button
-                        className="btn btn-outline"
-                        style={{ padding: '5px 10px', fontSize: '12px' }}
-                        onClick={(e) => handleCompare(scan, e)}
-                        title="Compare Scan"
-                      >
-                        <HiScale /> COMPARE
-                      </button>
-                      <button
-                        className="btn btn-danger"
-                        style={{ padding: '5px 10px', fontSize: '12px' }}
-                        onClick={(e) => openDeleteModal(scan, e)}
-                        disabled={isDeleting && scanToDelete?.id === scan.id}
-                        title="Delete scan record from database"
-                      >
-                        <HiTrash /> {isDeleting && scanToDelete?.id === scan.id ? 'Deleting...' : 'DELETE'}
-                      </button>
-                    </div>
-                  </td>
+          <div className="table-responsive history-table-container">
+            <table className="history-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '75px' }}>Scan ID</th>
+                  <th>URL</th>
+                  <th style={{ width: '110px' }}>Verdict</th>
+                  <th style={{ width: '110px' }}>Risk Score</th>
+                  <th style={{ width: '100px' }}>AI Confidence</th>
+                  <th style={{ width: '165px' }}>Timestamp</th>
+                  <th style={{ textAlign: 'center', width: '210px' }}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {scans.map((scan) => (
+                  <tr key={scan.id} onClick={() => handleViewReport(scan)}>
+                    <td style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'var(--text-muted)' }}>
+                      #{scan.id}
+                    </td>
+                    <td className="url-cell" title={scan.url}>{scan.url}</td>
+                    <td>
+                      <span className={`badge ${scan.verdict?.toLowerCase()}`}>
+                        {scan.verdict}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`score-badge ${scan.risk_score <= 30 ? 'low' : scan.risk_score <= 70 ? 'medium' : 'high'}`}>
+                        {scan.risk_score} / 100
+                      </span>
+                    </td>
+                    <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      {scan.confidence !== undefined ? (scan.confidence * 100).toFixed(1) : (scan.risk_score).toFixed(1)}%
+                    </td>
+                    <td style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      {new Date(scan.created_at).toLocaleString()}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className="btn btn-outline"
+                          style={{ padding: '5px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                          onClick={() => handleViewReport(scan)}
+                          title="View Security Report"
+                        >
+                          <HiEye /> VIEW
+                        </button>
+                        <button
+                          className="btn btn-outline"
+                          style={{ padding: '5px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                          onClick={(e) => handleCompare(scan, e)}
+                          title="Compare Scan"
+                        >
+                          <HiScale /> COMPARE
+                        </button>
+                        <button
+                          className="btn btn-danger"
+                          style={{ padding: '5px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                          onClick={(e) => openDeleteModal(scan, e)}
+                          disabled={isDeleting && scanToDelete?.id === scan.id}
+                          title="Delete scan record from database"
+                        >
+                          <HiTrash /> {isDeleting && scanToDelete?.id === scan.id ? '...' : 'DELETE'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           {/* Pagination Controls */}
           {totalPages > 1 && (

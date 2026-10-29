@@ -345,36 +345,38 @@ export default function DashboardPage() {
                   </div>
 
                   {analytics.recent_scans?.length > 0 ? (
-                    <table className="history-table">
-                      <thead>
-                        <tr>
-                          <th>URL</th>
-                          <th>Verdict</th>
-                          <th>Risk Score</th>
-                          <th>Timestamp</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {analytics.recent_scans.map((scan) => (
-                          <tr key={scan.id} onClick={() => navigate('/history')}>
-                            <td className="url-cell">{scan.url}</td>
-                            <td>
-                              <span className={`badge ${scan.verdict?.toLowerCase()}`}>
-                                {scan.verdict}
-                              </span>
-                            </td>
-                            <td>
-                              <span className={`score-badge ${scan.risk_score <= 30 ? 'low' : scan.risk_score <= 70 ? 'medium' : 'high'}`}>
-                                {scan.risk_score}/100
-                              </span>
-                            </td>
-                            <td style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                              {new Date(scan.created_at).toLocaleString()}
-                            </td>
+                    <div className="table-responsive history-table-container">
+                      <table className="history-table">
+                        <thead>
+                          <tr>
+                            <th>URL</th>
+                            <th>Verdict</th>
+                            <th>Risk Score</th>
+                            <th>Timestamp</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {analytics.recent_scans.map((scan) => (
+                            <tr key={scan.id} onClick={() => navigate('/history')}>
+                              <td className="url-cell" title={scan.url}>{scan.url}</td>
+                              <td>
+                                <span className={`badge ${scan.verdict?.toLowerCase()}`}>
+                                  {scan.verdict}
+                                </span>
+                              </td>
+                              <td>
+                                <span className={`score-badge ${scan.risk_score <= 30 ? 'low' : scan.risk_score <= 70 ? 'medium' : 'high'}`}>
+                                  {scan.risk_score}/100
+                                </span>
+                              </td>
+                              <td style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                {new Date(scan.created_at).toLocaleString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   ) : (
                     <p style={{ color: 'var(--text-muted)', padding: '20px', textAlign: 'center' }}>
                       No recent scans found.
